@@ -61,6 +61,7 @@ erl_crash.dump
 .envrc
 *.plt
 *.lock
+_rel
 
 /topic-branch-scratch/
 
