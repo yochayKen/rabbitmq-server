@@ -66,6 +66,11 @@ RUN echo "Enable plugins..." \
 EXPOSE 15691 15692
 EXPOSE 15671 15672
 
+RUN echo "Allow guest user to login from anywhere..." \
+    ; ${FAIL_FAST_VERBOSE} \
+    ; mkdir -p ${RABBITMQ_CONF_DIR}/conf.d \
+    ; echo "loopback_users = none" > ${RABBITMQ_CONF_DIR}/conf.d/loopback_users.conf
+
 RUN echo "Remove Erlang cookie so that we start with a clean slate..." \
     ; ${FAIL_FAST_VERBOSE} \
     ; rm -f ${RABBITMQ_DATA_DIR}/.erlang.cookie
