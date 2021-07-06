@@ -15,3 +15,9 @@ container-image:
 		--build-arg RABBITMQ_VERSION=$(PROJECT_VERSION) \
 		--tag pivotalrabbitmq/rabbitmq:erlang-release-$(PROJECT_VERSION) \
 		.
+
+.PHONY: container
+container:
+	docker run --interactive --tty --rm \
+		-p 15672:15672 \
+		pivotalrabbitmq/rabbitmq:erlang-release-$(PROJECT_VERSION)
