@@ -44,9 +44,6 @@ RUN echo "Configure rabbitmq system user & group..." \
 ARG LOCALE=C.UTF-8
 ENV LC_ALL=${LOCALE} LC_CTYPE=${LOCALE} LANG=${LOCALE} LANGUAGE=${LOCALE}
 
-# Write logs to STDOUT, default for containers
-ENV RABBITMQ_LOGS=-
-
 CMD ["RabbitMQ", "console"]
 # https://www.rabbitmq.com/networking.html
 EXPOSE 1883 4369 5671 5672 8883 15674 15675 25672 61613 61614
@@ -70,6 +67,12 @@ RUN echo "Allow guest user to login from anywhere..." \
     ; ${FAIL_FAST_VERBOSE} \
     ; mkdir -p ${RABBITMQ_CONF_DIR}/conf.d \
     ; echo "loopback_users = none" > ${RABBITMQ_CONF_DIR}/conf.d/loopback_users.conf
+
+RUN echo "Enable debug logging with non-truncated types to STDOUT & STDERR..." \
+    ; ${FAIL_FAST_VERBOSE} \
+    ; mkdir -p ${RABBITMQ_CONF_DIR}/conf.d \
+    ; echo "log.console.level = debug" > ${RABBITMQ_CONF_DIR}/conf.d/debug_logging.conf \
+    ; echo "log.console.formatter.level_format = lc" >> ${RABBITMQ_CONF_DIR}/conf.d/debug_logging.conf
 
 RUN echo "Remove Erlang cookie so that we start with a clean slate..." \
     ; ${FAIL_FAST_VERBOSE} \
