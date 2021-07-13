@@ -7,11 +7,7 @@
 ##
 
 ### next line potentially updated in package install steps
-if test -f "$RABBITMQ_HOME/bin/RabbitMQ"; then
-    SYS_PREFIX=$RABBITMQ_HOME/$RABBITMQ_NODENAME
-else
-    SYS_PREFIX=
-fi
+SYS_PREFIX=
 export SYS_PREFIX
 
 CLEAN_BOOT_FILE=start_clean

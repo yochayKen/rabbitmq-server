@@ -25,9 +25,9 @@ WORKDIR ${RABBITMQ_INSTALL_DIR}
 # TODO: do not hardcode ERTS version
 ENV PATH=${RABBITMQ_INSTALL_DIR}/bin:${RABBITMQ_INSTALL_DIR}/erts-12.0/bin/:$PATH
 
-ARG RABBITMQ_DATA_DIR=${RABBITMQ_INSTALL_DIR}/var/lib/rabbitmq
-ARG RABBITMQ_CONF_DIR=${RABBITMQ_INSTALL_DIR}/etc/rabbitmq
-ARG RABBITMQ_LOG_DIR=${RABBITMQ_INSTALL_DIR}/var/log/rabbitmq
+ARG RABBITMQ_DATA_DIR=/var/lib/rabbitmq
+ARG RABBITMQ_CONF_DIR=/etc/rabbitmq
+ARG RABBITMQ_LOG_DIR=/var/log/rabbitmq
 
 # Hint that this should be a volume
 VOLUME ${RABBITMQ_DATA_DIR}
@@ -38,12 +38,17 @@ RUN echo "Configure rabbitmq system user & group..." \
     ; useradd --uid 999 --system --home-dir ${RABBITMQ_DATA_DIR} --gid rabbitmq rabbitmq \
     ; id rabbitmq \
     ; mkdir -p ${RABBITMQ_DATA_DIR} ${RABBITMQ_CONF_DIR} ${RABBITMQ_LOG_DIR} \
-    ; chown -fR rabbitmq:rabbitmq ${RABBITMQ_DATA_DIR} ${RABBITMQ_CONF_DIR} ${RABBITMQ_LOG_DIR} ${RABBITMQ_INSTALL_DIR}/log \
-    ; chmod 770 ${RABBITMQ_DATA_DIR} ${RABBITMQ_CONF_DIR} ${RABBITMQ_LOG_DIR} ${RABBITMQ_INSTALL_DIR}/log
+    ; chown -fR rabbitmq:rabbitmq ${RABBITMQ_DATA_DIR} ${RABBITMQ_CONF_DIR} ${RABBITMQ_LOG_DIR} ${RABBITMQ_INSTALL_DIR} \
+    ; chmod 770 ${RABBITMQ_DATA_DIR} ${RABBITMQ_CONF_DIR} ${RABBITMQ_LOG_DIR} ${RABBITMQ_INSTALL_DIR}
 
 # Configure locale
 ARG LOCALE=C.UTF-8
 ENV LC_ALL=${LOCALE} LC_CTYPE=${LOCALE} LANG=${LOCALE} LANGUAGE=${LOCALE}
+
+# Replace env vars in vm.args & sys.config
+ENV RELX_REPLACE_OS_VARS=true
+# Default to rabbit, cluster-operator will overwrite this in Kubernetes
+ENV RABBITMQ_NODENAME=rabbit
 
 CMD ["RabbitMQ", "console"]
 # https://www.rabbitmq.com/networking.html
