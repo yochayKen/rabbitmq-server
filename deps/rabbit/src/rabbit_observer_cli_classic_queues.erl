@@ -62,7 +62,7 @@ sheet_body(State) ->
                         GS2Q = rabbit_core_metrics:get_gen_server2_stats(Pid),
                         [
                             Pid, Vhost, Name,
-                            Mem,
+                            {byte, Mem},
                             MsgQ + GS2Q, MsgQ, GS2Q,
                             proplists:get_value(heap_size, GCI),
                             proplists:get_value(heap_block_size, GCI),
