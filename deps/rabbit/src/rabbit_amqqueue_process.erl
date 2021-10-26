@@ -278,7 +278,11 @@ init_with_backing_queue_state(Q, BQ, BQS,
     notify_decorators(startup, State3),
     State3.
 
+-define(DBGLOG(Format, Args), file:write_file("/tmp/rabbit_amqqueue_process.log", io_lib:format(Format ++ "~n", Args), [append])).
+
+%% Other terminates here.
 terminate(shutdown = R,      State = #q{backing_queue = BQ, q = Q0}) ->
+    ?DBGLOG("~p:terminate ~p ~0p", [?MODULE, R, State]),
     QName = amqqueue:get_name(Q0),
     rabbit_core_metrics:queue_deleted(qname(State)),
     terminate_shutdown(
@@ -295,12 +299,16 @@ terminate(shutdown = R,      State = #q{backing_queue = BQ, q = Q0}) ->
         BQ:terminate(R, BQS)
     end, State);
 terminate({shutdown, missing_owner} = Reason, State) ->
+    ?DBGLOG("~p:terminate ~p ~0p", [?MODULE, Reason, State]),
     %% if the owner was missing then there will be no queue, so don't emit stats
     terminate_shutdown(terminate_delete(false, Reason, State), State);
 terminate({shutdown, _} = R, State = #q{backing_queue = BQ}) ->
+    ?DBGLOG("~p:terminate ~p ~0p", [?MODULE, R, State]),
     rabbit_core_metrics:queue_deleted(qname(State)),
     terminate_shutdown(fun (BQS) -> BQ:terminate(R, BQS) end, State);
+%% Queue that gets deleted goes here.
 terminate(normal, State = #q{status = {terminated_by, auto_delete}}) ->
+    ?DBGLOG("~p:terminate ~p ~0p", [?MODULE, normal, State]),
     %% auto_delete case
     %% To increase performance we want to avoid a mnesia_sync:sync call
     %% after every transaction, as we could be deleting simultaneously
@@ -309,9 +317,11 @@ terminate(normal, State = #q{status = {terminated_by, auto_delete}}) ->
     %% operation on `rabbit_durable_queue`
     terminate_shutdown(terminate_delete(true, auto_delete, State), State);
 terminate(normal,            State) -> %% delete case
+    ?DBGLOG("~p:terminate ~p ~0p", [?MODULE, normal, State]),
     terminate_shutdown(terminate_delete(true, normal, State), State);
 %% If we crashed don't try to clean up the BQS, probably best to leave it.
-terminate(_Reason,           State = #q{q = Q}) ->
+terminate(Reason,           State = #q{q = Q}) ->
+    ?DBGLOG("~p:terminate ~p ~0p", [?MODULE, Reason, State]),
     terminate_shutdown(fun (BQS) ->
                                Q2 = amqqueue:set_state(Q, crashed),
                                rabbit_misc:execute_mnesia_transaction(

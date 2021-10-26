@@ -1080,6 +1080,8 @@ monitor_child(Pid) ->
               ok
     end.
 
+-define(DBGLOG(Format, Args), file:write_file("/tmp/supervisor2.log", io_lib:format(Format ++ "~n", Args), [append])).
+
 %%-----------------------------------------------------------------
 %% Func: terminate_dynamic_children/1
 %% Args: State
@@ -1093,12 +1095,13 @@ terminate_dynamic_children(State) ->
     Child = get_dynamic_child(State),
     {Pids, EStack0} = monitor_dynamic_children(Child,State),
     Sz = sets:size(Pids),
+    ?DBGLOG("~p: ~p ~0p", [?MODULE, Sz, Child]),
     EStack = case Child#child.shutdown of
                  brutal_kill ->
                      sets:fold(fun(P, _) -> exit(P, kill) end, ok, Pids),
                      wait_dynamic_children(Child, Pids, Sz, undefined, EStack0);
                  infinity ->
-                     sets:fold(fun(P, _) -> exit(P, shutdown) end, ok, Pids),
+                     sets:fold(fun(P, _) -> ?DBGLOG("~p: shutdown ~p", [?MODULE, P]), exit(P, shutdown) end, ok, Pids),
                      wait_dynamic_children(Child, Pids, Sz, undefined, EStack0);
                  Time ->
                      sets:fold(fun(P, _) -> exit(P, shutdown) end, ok, Pids),
@@ -1151,22 +1154,27 @@ wait_dynamic_children(#child{shutdown=brutal_kill} = Child, Pids, Sz,
 wait_dynamic_children(Child, Pids, Sz, TRef, EStack) ->
     receive
         {'DOWN', _MRef, process, Pid, shutdown} ->
+            ?DBGLOG("~p: did shutdown shutdown ~0p", [?MODULE, Pid]),
             wait_dynamic_children(Child, sets:del_element(Pid, Pids), Sz-1,
                                   TRef, EStack);
 
         {'DOWN', _MRef, process, Pid, {shutdown, _}} ->
+            ?DBGLOG("~p: did shutdown tuple ~0p", [?MODULE, Pid]),
             wait_dynamic_children(Child, sets:del_element(Pid, Pids), Sz-1,
                                   TRef, EStack);
 
         {'DOWN', _MRef, process, Pid, normal} when not (?is_permanent(Child)) ->
+            ?DBGLOG("~p: did shutdown normal ~0p", [?MODULE, Pid]),
             wait_dynamic_children(Child, sets:del_element(Pid, Pids), Sz-1,
                                   TRef, EStack);
 
         {'DOWN', _MRef, process, Pid, Reason} ->
+            ?DBGLOG("~p: did shutdown ~0p ~0p", [?MODULE, Reason, Pid]),
             wait_dynamic_children(Child, sets:del_element(Pid, Pids), Sz-1,
                                   TRef, dict:append(Reason, Pid, EStack));
 
         {timeout, TRef, kill} ->
+            ?DBGLOG("~p: kill ~p ~0p", [?MODULE, Sz, Pids]),
             sets:fold(fun(P, _) -> exit(P, kill) end, ok, Pids),
             wait_dynamic_children(Child, Pids, Sz, undefined, EStack)
     end.

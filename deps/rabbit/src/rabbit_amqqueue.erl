@@ -6,6 +6,10 @@
 %%
 
 -module(rabbit_amqqueue).
+-compile(export_all).
+-compile(nowarn_export_all).
+-export([delete_queues_on_node_down/1]).
+-export([delete_queue/1]).
 
 -export([warn_file_limit/0]).
 -export([recover/1, stop/1, start/1, declare/6, declare/7,
@@ -1905,7 +1909,8 @@ maybe_clear_recoverable_node(Node, Q) ->
 -spec on_node_down(node()) -> 'ok'.
 
 on_node_down(Node) ->
-    {QueueNames, QueueDeletions} = delete_queues_on_node_down(Node),
+    {Time, {QueueNames, QueueDeletions}} = timer:tc(fun() -> delete_queues_on_node_down(Node) end),
+    logger:error("TIME ~p LENGTH ~p", [Time, length(QueueNames)]),
     notify_queue_binding_deletions(QueueDeletions),
     rabbit_core_metrics:queues_deleted(QueueNames),
     notify_queues_deleted(QueueNames),

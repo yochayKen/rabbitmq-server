@@ -10,6 +10,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/logger.hrl").
 -include_lib("rabbit_common/include/logging.hrl").
+-include_lib("stdlib/include/qlc.hrl").
 
 -ignore_xref({rabbit_direct, force_event_refresh, 1}).
 -ignore_xref({rabbit_networking, force_connection_event_refresh, 1}).
@@ -479,22 +480,63 @@ do_stop() ->
     Apps0 = ?APPS ++ rabbit_plugins:active(),
     %% We ensure that Mnesia is stopped last (or more exactly, after rabbit).
     Apps1 = app_utils:app_dependency_order(Apps0, true) -- [mnesia],
-    Apps = [mnesia | Apps1],
+    Apps = [mnesia|Apps1],
     %% this will also perform unregistration with the peer discovery backend
     %% as needed
-    stop_apps(Apps).
+    stop_apps(Apps),
+%    rabbit_amqqueue:delete_queues_on_node_down(node()),
+%    stop_apps([mnesia]),
+    ok.
 
 -spec stop_and_halt() -> no_return().
 
+queues_to_delete_on_stop(NodeDown) ->
+    rabbit_misc:execute_mnesia_transaction(fun () ->
+        qlc:e(qlc:q([amqqueue:get_name(Q) ||
+            Q <- mnesia:table(rabbit_queue),
+                amqqueue:qnode(Q) == NodeDown andalso
+                (not rabbit_amqqueue:is_replicated(Q) orelse
+                rabbit_amqqueue:is_exclusive(Q))]
+        ))
+    end).
+
+delete_queues_on_stop(Node) ->
+    QueuesToDelete = queues_to_delete_on_stop(Node),
+    _ = [begin
+        {ok, Queue} = rabbit_amqqueue:lookup(QueueName),
+        exit(amqqueue:get_pid(Queue), shutdown),
+        MRef = monitor(process, amqqueue:get_pid(Queue)),
+        receive {'DOWN', MRef, _, _, _} -> ok after 600000 -> exit(amqqueue:get_pid(Queue), kill) end
+    end || QueueName <- QueuesToDelete],
+    lists:unzip(lists:flatten([
+        rabbit_misc:execute_mnesia_transaction(
+          fun () ->
+            [begin
+                {Queue, rabbit_amqqueue:delete_queue(Queue)}
+            end || Queue <- Queues]
+          end
+        ) || Queues <- rabbit_amqqueue:partition_queues(QueuesToDelete)
+    ])).
+
+
 stop_and_halt() ->
     try
+        {Time, {QueueNames, QueueDeletions}} = timer:tc(fun() -> delete_queues_on_stop(node()) end),
+        logger:error("STOP DELETIONS TIME ~p LENGTH ~p", [Time, length(QueueNames)]),
+
+    rabbit_amqqueue:notify_queue_binding_deletions(QueueDeletions),
+    rabbit_core_metrics:queues_deleted(QueueNames),
+    rabbit_amqqueue:notify_queues_deleted(QueueNames),
+
+        %rabbit_amqqueue:on_node_down(node()),
+
         stop()
-    catch Type:Reason ->
+    catch Type:Reason:Stacktrace ->
         ?LOG_ERROR(
-          "Error trying to stop ~s: ~p:~p",
-          [product_name(), Type, Reason],
+          "Error trying to stop ~s: ~p:~p ~0p",
+          [product_name(), Type, Reason, Stacktrace],
           #{domain => ?RMQLOG_DOMAIN_PRELAUNCH}),
-        error({Type, Reason})
+        erlang:raise(Type, Reason, Stacktrace)
     after
         %% Enclose all the logging in the try block.
         %% init:stop() will be called regardless of any errors.
