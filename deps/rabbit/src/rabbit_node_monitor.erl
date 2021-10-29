@@ -366,7 +366,7 @@ init([]) ->
     {ok, ensure_keepalive_timer(#state{monitors    = Monitors,
                                        subscribers = pmon:new(),
                                        partitions  = [],
-                                       guid        = rabbit_guid:gen(),
+                                       guid        = erlang:system_info(creation),
                                        node_guids  = maps:new(),
                                        autoheal    = rabbit_autoheal:init()})}.
 
@@ -435,15 +435,18 @@ handle_cast({check_partial_partition, Node, Rep, NodeGUID, MyGUID, RepGUID},
         maps:find(Node, GUIDs) =:= {ok, NodeGUID} of
         true  -> spawn_link( %%[1]
                    fun () ->
-                           case rpc:call(Node, rabbit, is_running, []) of
+                           case rpc:call(Node, erlang, system_info, [creation]) of
                                {badrpc, _} -> ok;
-                               _           ->
+                               NodeGUID ->
                                    rabbit_log:warning("Received a 'DOWN' message"
                                                       " from ~p but still can"
                                                       " communicate with it ",
                                                       [Node]),
                                    cast(Rep, {partial_partition,
-                                                         Node, node(), RepGUID})
+                                              Node, node(), RepGUID});
+                               _ ->
+                                   rabbit_log:warning("Looks like ~p has been restarted.", [Node]),
+                                   ok
                            end
                    end);
         false -> ok
