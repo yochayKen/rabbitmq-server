@@ -1164,16 +1164,12 @@ messages_total_prop(Conf0, Commands) ->
 messages_total_invariant() ->
     fun(#rabbit_fifo{messages = M,
                      consumers = C,
-                     enqueuers = E,
                      prefix_msgs = {PTot, _, RTot, _},
                      returns = R} = S) ->
             Base = lqueue:len(M) + lqueue:len(R) + PTot + RTot,
-            CTot = maps:fold(fun (_, #consumer{checked_out = Ch}, Acc) ->
+            Tot = maps:fold(fun (_, #consumer{checked_out = Ch}, Acc) ->
                                      Acc + map_size(Ch)
-                             end, Base, C),
-            Tot = maps:fold(fun (_, #enqueuer{pending = P}, Acc) ->
-                                    Acc + length(P)
-                            end, CTot, E),
+                            end, Base, C),
             QTot = rabbit_fifo:query_messages_total(S),
             case Tot == QTot of
                 true -> true;
@@ -1355,10 +1351,10 @@ nodeup_gen(Nodes) ->
 enqueue_gen(Pid) ->
     enqueue_gen(Pid, 10, 1).
 
-enqueue_gen(Pid, Enq, Del) ->
-    ?LET(E, {enqueue, Pid,
-             frequency([{Enq, enqueue},
-                        {Del, delay}]),
+enqueue_gen(Pid, _Enq, _Del) ->
+    ?LET(E, {enqueue, Pid, enqueue,
+             % frequency([{Enq, enqueue},
+             %            {Del, delay}]),
              binary()}, E).
 
 checkout_cancel_gen(Pid) ->
